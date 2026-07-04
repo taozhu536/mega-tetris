@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>俄罗斯方块 · 配色工坊</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #f5f0eb;
+  }
+  body {
+    display: flex;
+    height: 100%;
+  }
+
+  /* 左侧面板 */
+  .panel {
+    width: 220px;
+    min-width: 220px;
+    background: #fff;
+    border-right: 1px solid #e0d8ce;
+    padding: 20px 16px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .panel h3 {
+    font-size: 13px;
+    font-weight: 600;
+    color: #666;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 2px;
+  }
+  .panel label {
+    font-size: 13px;
+    color: #444;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+  }
+  .panel input[type="color"] {
+    width: 32px;
+    height: 32px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    padding: 1px;
+    cursor: pointer;
+    background: none;
+  }
+  .panel .section {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .panel .piece-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .panel .piece-label {
+    font-size: 13px;
+    color: #555;
+    min-width: 24px;
+  }
+  .panel .reset-btn {
+    margin-top: 8px;
+    padding: 8px 0;
+    font-size: 13px;
+    font-weight: 600;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    background: #fafafa;
+    color: #555;
+    cursor: pointer;
+    text-align: center;
+    transition: background 0.15s;
+  }
+  .panel .reset-btn:hover { background: #f0f0f0; }
+
+  /* 棋盘区 */
+  .game-container {
+    flex: 1;
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 3px;
+  }
+  #board {
+    display: block;
+    object-fit: contain;
+  }
+
+  .game-over-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.65);
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 20px;
+    z-index: 10;
+  }
+  .game-over-overlay.show { display: flex; }
+  .game-over-overlay h2 {
+    color: #ff4060;
+    font-size: clamp(28px, 6vw, 56px);
+    font-weight: 800;
+    letter-spacing: 6px;
+  }
+  .game-over-overlay button {
+    padding: 14px 48px;
+    font-size: clamp(14px, 2.5vw, 20px);
+    font-weight: 700;
+    background: linear-gradient(135deg, #f59f00, #f76707);
+    border: none;
+    border-radius: 12px;
+    color: #fff;
+    cursor: pointer;
+    transition: transform 0.15s;
+  }
+  .game-over-overlay button:hover { transform: scale(1.06); }
+  .pause-hint {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: rgba(0,0,0,0.20);
+    font-size: clamp(24px, 5vw, 48px);
+    font-weight: 700;
+    letter-spacing: 8px;
+    display: none;
+    pointer-events: none;
+    z-index: 5;
+  }
+  .pause-hint.show { display: block; }
+
+  @media (max-width: 700px) {
+    .panel { width: 160px; min-width: 160px; padding: 12px 10px; }
+    .panel h3 { font-size: 11px; }
+    .panel label { font-size: 11px; }
+    .panel input[type="color"] { width: 26px; height: 26px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- 左侧面板 -->
+<div class="panel" id="panel">
+  <div class="section">
+    <h3>背景</h3>
+    <label>
+      <input type="color" id="bgColor" value="#faf6f0">
+      背景色
+    </label>
+    <label>
+      <input type="color" id="gridColor" value="#e8e2d9">
+      网格线
+    </label>
+  </div>
+  <div class="section">
+    <h3>方块颜色</h3>
+    <div class="piece-row"><span class="piece-label">I</span> <input type="color" id="cI" value="#f59f00"></div>
+    <div class="piece-row"><span class="piece-label">O</span> <input type="color" id="cO" value="#4dabf7"></div>
+    <div class="piece-row"><span class="piece-label">T</span> <input type="color" id="cT" value="#9775fa"></div>
+    <div class="piece-row"><span class="piece-label">S</span> <input type="color" id="cS" value="#20c997"></div>
+    <div class="piece-row"><span class="piece-label">Z</span> <input type="color" id="cZ" value="#ff6b6b"></div>
+    <div class="piece-row"><span class="piece-label">J</span> <input type="color" id="cJ" value="#339af0"></div>
+    <div class="piece-row"><span class="piece-label">L</span> <input type="color" id="cL" value="#cc5de8"></div>
+  </div>
+  <div class="section">
+    <h3>幽灵</h3>
+    <label>
+      <input type="color" id="ghostColor" value="#000000">
+      幽灵透明度
+      <input type="range" id="ghostAlpha" min="0" max="100" value="10" style="width:50px">
+    </label>
+  </div>
+  <div class="section">
+    <h3>AI 自动</h3>
+    <div class="reset-btn" id="aiToggle" onclick="toggleAI()">🤖 自动玩</div>
+  </div>
+  <div class="reset-btn" onclick="resetColors()">恢复默认</div>
+</div>
+
+<!-- 棋盘 -->
+<div class="game-container">
+  <canvas id="board"></canvas>
+</div>
+<div class="game-over-overlay" id="gameOverOverlay">
+  <h2>GAME OVER</h2>
+  <button onclick="restartGame()">再来一局</button>
+</div>
+<div class="pause-hint" id="pauseHint">⏸ 暂停</div>
+
+<script>
+const COLS = 200;
+const ROWS = 102;
+const VISIBLE_ROWS = 100;
+const BLOCK_SIZE = 10;
+
+// 默认配色
+const DEFAULT_COLORS = {
+  I: '#f59f00', O: '#4dabf7', T: '#9775fa',
+  S: '#20c997', Z: '#ff6b6b', J: '#339af0', L: '#cc5de8',
+};
+const DEFAULT_BG = '#faf6f0';
+const DEFAULT_GRID = '#e8e2d9';
+
+let pieceColors = { ...DEFAULT_COLORS };
+let bgColor = DEFAULT_BG;
+let gridColor = DEFAULT_GRID;
+let ghostColor = '#000000';
+let ghostAlpha = 0.10;
+
+const SHAPES = {
+  I: [[1,1,1,1]], O: [[1,1],[1,1]], T: [[0,1,0],[1,1,1]],
+  S: [[0,1,1],[1,1,0]], Z: [[1,1,0],[0,1,1]],
+  J: [[1,0,0],[1,1,1]], L: [[0,0,1],[1,1,1]],
+};
+const PIECE_NAMES = ['I','O','T','S','Z','J','L'];
+
+const canvas = document.getElementById('board');
+const ctx = canvas.getContext('2d');
+canvas.width = COLS * BLOCK_SIZE;
+canvas.height = VISIBLE_ROWS * BLOCK_SIZE;
+
+let board = [];
+let currentPiece = null;
+let nextPiece = null;
+let gameOver = false;
+let paused = false;
+let dropInterval = null;
+let bag = [];
+
+// ===== 颜色控制绑定 =====
+function getColor(id) { return document.getElementById(id).value; }
+function bindColorInput(id, setter) {
+  document.getElementById(id).addEventListener('input', () => {
+    setter(document.getElementById(id).value);
+    if (document.getElementById(id) === document.getElementById('bgColor') || document.getElementById(id) === document.getElementById('gridColor')) {
+      drawAll();
+    } else {
+      // 颜色变了需要重绘，且当前方块颜色也要更新
+      const map = { cI:'I', cO:'O', cT:'T', cS:'S', cZ:'Z', cJ:'J', cL:'L' };
+      if (map[id]) {
+        pieceColors[map[id]] = getColor(id);
+        // 更新当前方块的 color 引用
+        if (currentPiece) currentPiece.color = pieceColors[currentPiece.name];
+      }
+      drawAll();
+    }
+  });
+}
+bindColorInput('bgColor', v => bgColor = v);
+bindColorInput('gridColor', v => gridColor = v);
+bindColorInput('cI', v => pieceColors.I = v);
+bindColorInput('cO', v => pieceColors.O = v);
+bindColorInput('cT', v => pieceColors.T = v);
+bindColorInput('cS', v => pieceColors.S = v);
+bindColorInput('cZ', v => pieceColors.Z = v);
+bindColorInput('cJ', v => pieceColors.J = v);
+bindColorInput('cL', v => pieceColors.L = v);
+document.getElementById('ghostColor').addEventListener('input', () => {
+  ghostColor = document.getElementById('ghostColor').value;
+  drawAll();
+});
+document.getElementById('ghostAlpha').addEventListener('input', () => {
+  ghostAlpha = document.getElementById('ghostAlpha').value / 100;
+  drawAll();
+});
+
+function resetColors() {
+  document.getElementById('bgColor').value = DEFAULT_BG;
+  document.getElementById('gridColor').value = DEFAULT_GRID;
+  document.getElementById('cI').value = DEFAULT_COLORS.I;
+  document.getElementById('cO').value = DEFAULT_COLORS.O;
+  document.getElementById('cT').value = DEFAULT_COLORS.T;
+  document.getElementById('cS').value = DEFAULT_COLORS.S;
+  document.getElementById('cZ').value = DEFAULT_COLORS.Z;
+  document.getElementById('cJ').value = DEFAULT_COLORS.J;
+  document.getElementById('cL').value = DEFAULT_COLORS.L;
+  document.getElementById('ghostColor').value = '#000000';
+  document.getElementById('ghostAlpha').value = 10;
+  bgColor = DEFAULT_BG;
+  gridColor = DEFAULT_GRID;
+  pieceColors = { ...DEFAULT_COLORS };
+  ghostColor = '#000000';
+  ghostAlpha = 0.10;
+  if (currentPiece) currentPiece.color = pieceColors[currentPiece.name];
+  drawAll();
+}
+
+// ===== 游戏逻辑 =====
+function initBoard() { board = Array.from({length: ROWS}, () => Array(COLS).fill(0)); }
+function shuffleArray(arr) { for (let i = arr.length-1; i>0; i--) { const j=Math.floor(Math.random()*(i+1)); [arr[i],arr[j]]=[arr[j],arr[i]]; } return arr; }
+function fillBag() { bag = shuffleArray([...PIECE_NAMES]); }
+function getNextFromBag() { if(bag.length===0) fillBag(); return bag.pop(); }
+function createPiece(name) {
+  const shape = SHAPES[name].map(r=>[...r]);
+  return { name, shape, x: Math.floor((COLS-shape[0].length)/2), y:0, color: pieceColors[name] };
+}
+function spawnPiece() {
+  if(!nextPiece) nextPiece = createPiece(getNextFromBag());
+  currentPiece = nextPiece;
+  nextPiece = createPiece(getNextFromBag());
+  currentPiece.y = 0;
+  currentPiece.x = Math.floor((COLS-currentPiece.shape[0].length)/2);
+  if(collides(currentPiece.shape, currentPiece.x, currentPiece.y)) { gameOver=true; showGameOver(); stopDropTimer(); }
+  drawAll();
+}
+function collides(shape, ox, oy) {
+  for(let r=0; r<shape.length; r++) for(let c=0; c<shape[r].length; c++) if(shape[r][c]) { const bx=ox+c,by=oy+r; if(bx<0||bx>=COLS||by>=ROWS) return true; if(by>=0&&board[by][bx]) return true; }
+  return false;
+}
+function getGhostY() { let gy=currentPiece.y; while(!collides(currentPiece.shape,currentPiece.x,gy+1)) gy++; return gy; }
+function movePiece(dx,dy) {
+  if(gameOver||paused||!currentPiece) return false;
+  if(!collides(currentPiece.shape,currentPiece.x+dx,currentPiece.y+dy)) { currentPiece.x+=dx; currentPiece.y+=dy; drawAll(); return true; }
+  if(dy===1) lockPiece();
+  return false;
+}
+function rotatePiece() {
+  if(gameOver||paused||!currentPiece) return;
+  const shape=currentPiece.shape, rotated=shape[0].map((_,i)=>shape.map(r=>r[i]).reverse());
+  for(const kick of [0,-1,1,-2,2]) if(!collides(rotated,currentPiece.x+kick,currentPiece.y)) { currentPiece.shape=rotated; currentPiece.x+=kick; drawAll(); return; }
+}
+function hardDrop() { if(gameOver||paused||!currentPiece) return; while(!collides(currentPiece.shape,currentPiece.x,currentPiece.y+1)) currentPiece.y++; lockPiece(); }
+function lockPiece() {
+  if(!currentPiece) return;
+  for(let r=0;r<currentPiece.shape.length;r++) for(let c=0;c<currentPiece.shape[r].length;c++) if(currentPiece.shape[r][c]) { const by=currentPiece.y+r,bx=currentPiece.x+c; if(by<0){gameOver=true;showGameOver();stopDropTimer();return;} board[by][bx]=currentPiece.name; }
+  clearLines();
+  spawnPiece();
+}
+function clearLines() { for(let r=ROWS-1;r>=0;r--) if(board[r].every(c=>c!==0)){board.splice(r,1);board.unshift(Array(COLS).fill(0));r++;} }
+function startDropTimer() { stopDropTimer(); dropInterval=setInterval(()=>{if(!gameOver&&!paused&&currentPiece)movePiece(0,1);},400); }
+function stopDropTimer() { if(dropInterval){clearInterval(dropInterval);dropInterval=null;} }
+
+// ===== 渲染 =====
+let drawQueued = false;
+function drawAll() { if(drawQueued) return; drawQueued=true; requestAnimationFrame(()=>{drawQueued=false;drawBoard();}); }
+function drawBoard() {
+  const w=canvas.width,h=canvas.height;
+  ctx.clearRect(0,0,w,h);
+  ctx.fillStyle=bgColor; ctx.fillRect(0,0,w,h);
+  ctx.strokeStyle=gridColor; ctx.lineWidth=0.3;
+  for(let r=0;r<=VISIBLE_ROWS;r++){ctx.beginPath();ctx.moveTo(0,r*BLOCK_SIZE);ctx.lineTo(w,r*BLOCK_SIZE);ctx.stroke();}
+  for(let c=0;c<=COLS;c++){ctx.beginPath();ctx.moveTo(c*BLOCK_SIZE,0);ctx.lineTo(c*BLOCK_SIZE,h);ctx.stroke();}
+  for(let r=2;r<ROWS;r++) for(let c=0;c<COLS;c++) if(board[r][c]) drawBlock(ctx,c,r-2,pieceColors[board[r][c]]);
+  if(currentPiece&&!gameOver) {
+    const gY=getGhostY();
+    for(let r=0;r<currentPiece.shape.length;r++) for(let c=0;c<currentPiece.shape[r].length;c++) if(currentPiece.shape[r][c]) {
+      const bx=currentPiece.x+c;
+      const gy=gY+r-2;
+      if(gy>=0) { ctx.fillStyle=ghostColor+Math.round(ghostAlpha*255).toString(16).padStart(2,'0'); ctx.fillRect(bx*BLOCK_SIZE,gy*BLOCK_SIZE,BLOCK_SIZE,BLOCK_SIZE); }
+      const by=currentPiece.y+r-2;
+      if(by>=0) drawBlock(ctx,bx,by,pieceColors[currentPiece.name]);
+    }
+  }
+}
+function drawBlock(ctx,x,y,color) {
+  const cx=x*BLOCK_SIZE,cy=y*BLOCK_SIZE,s=BLOCK_SIZE;
+  ctx.fillStyle=color+'cc'; ctx.fillRect(cx,cy,s,s);
+  ctx.fillStyle='rgba(255,255,255,0.30)'; ctx.fillRect(cx,cy,s,1.5); ctx.fillRect(cx,cy,1.5,s);
+  ctx.fillStyle='rgba(0,0,0,0.10)'; ctx.fillRect(cx+s-1.5,cy,1.5,s); ctx.fillRect(cx,cy+s-1.5,s,1.5);
+}
+
+function showGameOver() { document.getElementById('gameOverOverlay').classList.add('show'); }
+function restartGame() {
+  document.getElementById('gameOverOverlay').classList.remove('show');
+  document.getElementById('pauseHint').classList.remove('show');
+  paused=false; gameOver=false; bag=[];
+  initBoard(); nextPiece=null; spawnPiece(); startDropTimer();
+}
+function togglePause() { if(gameOver) return; paused=!paused; document.getElementById('pauseHint').classList.toggle('show',paused); if(paused) drawAll(); }
+
+document.addEventListener('keydown', (e) => {
+  if(e.key==='p'||e.key==='P'){togglePause();return;}
+  if(gameOver){if(e.key==='Enter'||e.key===' ')restartGame();return;}
+  if(paused) return;
+  switch(e.key) {
+    case 'ArrowLeft': movePiece(-1,0); e.preventDefault(); break;
+    case 'ArrowRight': movePiece(1,0); e.preventDefault(); break;
+    case 'ArrowDown': movePiece(0,1); e.preventDefault(); break;
+    case 'ArrowUp': rotatePiece(); e.preventDefault(); break;
+    case ' ': hardDrop(); e.preventDefault(); break;
+  }
+});
+
+let tX=0,tY=0,tT=0;
+canvas.addEventListener('touchstart',(e)=>{if(paused||gameOver)return;const t=e.touches[0];tX=t.clientX;tY=t.clientY;tT=Date.now();},{passive:true});
+canvas.addEventListener('touchmove',(e)=>{if(paused||gameOver)return;e.preventDefault();const t=e.touches[0];const dx=t.clientX-tX,dy=t.clientY-tY;if(Math.abs(dx)>BLOCK_SIZE*2){movePiece(dx>0?1:-1,0);tX=t.clientX;tY=t.clientY;}if(Math.abs(dy)>BLOCK_SIZE*2){movePiece(0,1);tX=t.clientX;tY=t.clientY;}},{passive:false});
+canvas.addEventListener('touchend',(e)=>{if(paused||gameOver)return;const dt=Date.now()-tT,dx=Math.abs(e.changedTouches[0].clientX-tX),dy=Math.abs(e.changedTouches[0].clientY-tY);if(dt<180&&dx<8&&dy<8)rotatePiece();},{passive:true});
+document.addEventListener('dblclick',togglePause);
+
+// ===== AI 自动玩 =====
+let aiMode = false;
+let aiInterval = null;
+
+function evaluatePosition(piece, shape, x, y) {
+  // 模拟放置后统计：消行数、最高列、空洞数、凸起数
+  const tempBoard = board.map(r=>[...r]);
+  for(let r=0; r<shape.length; r++)
+    for(let c=0; c<shape[r].length; c++)
+      if(shape[r][c] && y+r>=0) tempBoard[y+r][x+c] = piece;
+  // 标记消除的行
+  const clearedRows = [];
+  for(let r=0; r<ROWS; r++)
+    if(tempBoard[r].every(c=>c!==0)) clearedRows.push(r);
+
+  // 计算列高度
+  const heights = Array(COLS).fill(0);
+  for(let c=0; c<COLS; c++) {
+    for(let r=0; r<ROWS; r++) {
+      if(tempBoard[r][c]) { heights[c]=ROWS-r; break; }
+    }
+  }
+
+  // 惩罚项
+  let maxH = Math.max(...heights);
+  let avgH = heights.reduce((a,b)=>a+b,0)/COLS;
+  // 空洞惩罚：有方块上方有空洞
+  let holes = 0;
+  for(let c=0; c<COLS; c++) {
+    let block = false;
+    for(let r=0; r<ROWS; r++) {
+      if(tempBoard[r][c]) block=true;
+      else if(block) holes++;
+    }
+  }
+  // 凸起惩罚：相邻列高度差
+  let bump = 0;
+  for(let c=1; c<COLS; c++) bump += Math.abs(heights[c]-heights[c-1]);
+
+  // 消行奖励
+  const clearBonus = clearedRows.length * clearedRows.length * 100;
+
+  return clearBonus - maxH*2 - holes*4 - bump*0.5 - avgH*0.5;
+}
+
+function aiBestMove() {
+  if(!currentPiece || gameOver || paused) return null;
+  const name = currentPiece.name;
+  // 尝试所有旋转 + 所有列
+  const rotations = [[1,0],[1,1],[1,2],[1,3]]; // I 可以转 2 种，但全试一遍
+  let best = null;
+  let bestScore = -Infinity;
+  for(let rot=0; rot<4; rot++) {
+    let shape = SHAPES[name].map(r=>[...r]);
+    for(let r=0; r<rot; r++) {
+      shape = shape[0].map((_,i)=>shape.map(row=>row[i]).reverse());
+    }
+    for(let x=0; x<=COLS-shape[0].length; x++) {
+      // 找到这个 x 的落地 y
+      let y = 0;
+      while(!collides(shape, x, y+1)) y++;
+      if(y < 0) continue;
+      const score = evaluatePosition(name, shape, x, y);
+      if(score > bestScore) { bestScore = score; best = {shape, x, y, rot}; }
+    }
+  }
+  return best;
+}
+
+function aiStep() {
+  if(gameOver || paused || !currentPiece) {
+    if(gameOver) stopAI();
+    return;
+  }
+  const move = aiBestMove();
+  if(!move) return;
+
+  // 旋转到位
+  for(let i=0; i<move.rot; i++) rotatePiece();
+  // 左/右移到位
+  while(currentPiece.x < move.x) { if(!movePiece(1,0)) break; }
+  while(currentPiece.x > move.x) { if(!movePiece(-1,0)) break; }
+  // 直落
+  hardDrop();
+}
+
+function toggleAI() {
+  aiMode = !aiMode;
+  const btn = document.getElementById('aiToggle');
+  if(aiMode) {
+    btn.textContent = '⏹ 停止 AI';
+    btn.style.borderColor = '#f59f00';
+    btn.style.color = '#f59f00';
+    if(gameOver) restartGame();
+    aiInterval = setInterval(aiStep, 400/3);
+  } else {
+    stopAI();
+  }
+}
+
+function stopAI() {
+  aiMode = false;
+  const btn = document.getElementById('aiToggle');
+  btn.textContent = '🤖 自动玩';
+  btn.style.borderColor = '#ccc';
+  btn.style.color = '#555';
+  if(aiInterval) { clearInterval(aiInterval); aiInterval = null; }
+}
+
+// ===== 原有的启动、键盘、触摸等代码不变 =====
+// 保留所有原有代码到此结束
+
+// 启动
+initBoard(); fillBag(); spawnPiece(); startDropTimer();
+</script>
+</body>
+</html>
