@@ -190,7 +190,10 @@
       <label style="font-size:12px;cursor:pointer"><input type="radio" name="dropMode" value="soft" checked onchange="onDropModeChange()"> 软降</label>
       <label style="font-size:12px;cursor:pointer"><input type="radio" name="dropMode" value="hard" onchange="onDropModeChange()"> 直落</label>
     </div>
-    <div class="reset-btn" id="aiToggle" onclick="toggleAI()">🤖 自动玩</div>
+    <label style="font-size:12px;color:#555;display:flex;align-items:center;gap:6px">
+      积累 <input type="number" id="accumulateRows" value="3" min="1" max="20" style="width:42px;padding:2px 4px;border:1px solid #ccc;border-radius:4px;font-size:12px;text-align:center"> 行再消
+    </label>
+    <div class="reset-btn" id="aiToggle" onclick="toggleAI()" style="margin-top:4px">🤖 自动玩</div>
   </div>
   <div class="reset-btn" onclick="resetColors()">恢复默认</div>
 </div>
@@ -451,18 +454,19 @@ function evaluatePosition(piece, shape, x, y) {
   for(let c=1; c<COLS; c++) bump += Math.abs(heights[c]-heights[c-1]);
 
   // 积累行策略：尽量让行接近满但不消，等满 3 行以上再消
-  // fullRowCount: 接近填满的行数（缺口 ≤ 3）
+  // 积累行策略：尽量让行接近满但不消，用户设定的积累行数再消
+  const accumThreshold = parseInt(document.getElementById('accumulateRows').value) || 3;
   let nearFull = 0;
   for(let r=0; r<ROWS; r++) {
     const empty = tempBoard[r].filter(c=>c===0).length;
     if(empty > 0 && empty <= 3) nearFull++;
   }
 
-  // 消行奖励：积累策略——小于 3 行的消行奖励打低，大于等于 3 行才给高奖励
+  // 消行奖励：小于阈值的消行奖励打低，达到阈值才给高额奖励
   let clearBonus = 0;
-  if(clearedRows.length >= 3) {
+  if(clearedRows.length >= accumThreshold) {
     clearBonus = clearedRows.length * clearedRows.length * 500;
-  } else if(clearedRows.length === 2) {
+  } else if(clearedRows.length >= 2) {
     clearBonus = 50; // 2 行勉强可接受
   } else if(clearedRows.length === 1) {
     clearBonus = 10; // 1 行微乎其微
