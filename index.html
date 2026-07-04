@@ -427,7 +427,7 @@ function evaluatePosition(piece, shape, x, y) {
   // 惩罚项
   let maxH = Math.max(...heights);
   let avgH = heights.reduce((a,b)=>a+b,0)/COLS;
-  // 空洞惩罚：有方块上方有空洞
+  // 空洞惩罚
   let holes = 0;
   for(let c=0; c<COLS; c++) {
     let block = false;
@@ -436,14 +436,32 @@ function evaluatePosition(piece, shape, x, y) {
       else if(block) holes++;
     }
   }
-  // 凸起惩罚：相邻列高度差
+  // 凸起惩罚
   let bump = 0;
   for(let c=1; c<COLS; c++) bump += Math.abs(heights[c]-heights[c-1]);
 
-  // 消行奖励
-  const clearBonus = clearedRows.length * clearedRows.length * 100;
+  // 积累行策略：尽量让行接近满但不消，等满 3 行以上再消
+  // fullRowCount: 接近填满的行数（缺口 ≤ 3）
+  let nearFull = 0;
+  for(let r=0; r<ROWS; r++) {
+    const empty = tempBoard[r].filter(c=>c===0).length;
+    if(empty > 0 && empty <= 3) nearFull++;
+  }
 
-  return clearBonus - maxH*2 - holes*4 - bump*0.5 - avgH*0.5;
+  // 消行奖励：积累策略——小于 3 行的消行奖励打低，大于等于 3 行才给高奖励
+  let clearBonus = 0;
+  if(clearedRows.length >= 3) {
+    clearBonus = clearedRows.length * clearedRows.length * 500;
+  } else if(clearedRows.length === 2) {
+    clearBonus = 50; // 2 行勉强可接受
+  } else if(clearedRows.length === 1) {
+    clearBonus = 10; // 1 行微乎其微
+  }
+
+  // 接近满的行给予额外奖励，鼓励堆叠
+  const nearFullBonus = nearFull * 15;
+
+  return clearBonus + nearFullBonus - maxH*2 - holes*4 - bump*0.5 - avgH*0.5;
 }
 
 function aiBestMove() {
@@ -483,8 +501,8 @@ function aiStep() {
   // 左/右移到位
   while(currentPiece.x < move.x) { if(!movePiece(1,0)) break; }
   while(currentPiece.x > move.x) { if(!movePiece(-1,0)) break; }
-  // 直落
-  hardDrop();
+  // 软降一格（3倍速下落由 interval 频率保证，不是一次性硬直落）
+  movePiece(0, 1);
 }
 
 function toggleAI() {
@@ -495,7 +513,7 @@ function toggleAI() {
     btn.style.borderColor = '#f59f00';
     btn.style.color = '#f59f00';
     if(gameOver) restartGame();
-    aiInterval = setInterval(aiStep, 400/3);
+    aiInterval = setInterval(aiStep, 400/3); // 3x speed
   } else {
     stopAI();
   }
