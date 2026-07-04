@@ -186,6 +186,10 @@
   </div>
   <div class="section">
     <h3>AI 自动</h3>
+    <div style="display:flex;gap:6px;margin-bottom:6px">
+      <label style="font-size:12px;cursor:pointer"><input type="radio" name="dropMode" value="soft" checked onchange="onDropModeChange()"> 软降</label>
+      <label style="font-size:12px;cursor:pointer"><input type="radio" name="dropMode" value="hard" onchange="onDropModeChange()"> 直落</label>
+    </div>
     <div class="reset-btn" id="aiToggle" onclick="toggleAI()">🤖 自动玩</div>
   </div>
   <div class="reset-btn" onclick="resetColors()">恢复默认</div>
@@ -404,6 +408,12 @@ document.addEventListener('dblclick',togglePause);
 // ===== AI 自动玩 =====
 let aiMode = false;
 let aiInterval = null;
+let aiDropMode = 'soft'; // 'soft' or 'hard'
+
+function onDropModeChange() {
+  const el = document.querySelector('input[name="dropMode"]:checked');
+  aiDropMode = el ? el.value : 'soft';
+}
 
 function evaluatePosition(piece, shape, x, y) {
   // 模拟放置后统计：消行数、最高列、空洞数、凸起数
@@ -501,8 +511,12 @@ function aiStep() {
   // 左/右移到位
   while(currentPiece.x < move.x) { if(!movePiece(1,0)) break; }
   while(currentPiece.x > move.x) { if(!movePiece(-1,0)) break; }
-  // 软降一格（3倍速下落由 interval 频率保证，不是一次性硬直落）
-  movePiece(0, 1);
+  // 根据选项：软降一格 或 直落到底
+  if(aiDropMode === 'hard') {
+    hardDrop();
+  } else {
+    movePiece(0, 1); // 软降
+  }
 }
 
 function toggleAI() {
