@@ -215,8 +215,6 @@
     </label>
   </div>
 </div>
-
-<!-- 棋盘 -->
 <div class="game-container">
   <canvas id="board"></canvas>
 </div>
@@ -428,40 +426,39 @@ document.addEventListener('dblclick',togglePause);
 
 // ===== 背景音乐控制 =====
 let audioCtx = null;
-let audioBuffer1 = null;
-let audioBuffer2 = null;
+let audioBuffers = {};
 let audioGain = null;
 let audioSource = null;
+let audioLoaded = false;
 
-// 预加载音频文件
-async function loadAudio() {
+async function ensureAudioLoaded() {
+  if(audioLoaded) return;
   audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   audioGain = audioCtx.createGain();
-  audioGain.gain.value = 0.3;
+  audioGain.gain.value = parseInt(document.getElementById('musicVolume').value) / 100;
   audioGain.connect(audioCtx.destination);
 
-  try {
-    const resp1 = await fetch('bg1.mp3');
-    const data1 = await resp1.arrayBuffer();
-    audioBuffer1 = await audioCtx.decodeAudioData(data1);
-  } catch(e) { console.log('bg1 load failed:', e); }
-
-  try {
-    const resp2 = await fetch('bg2.mp3');
-    const data2 = await resp2.arrayBuffer();
-    audioBuffer2 = await audioCtx.decodeAudioData(data2);
-  } catch(e) { console.log('bg2 load failed:', e); }
-}
-
-function getCurrentMusicBuffer() {
-  const val = document.getElementById('musicSelect').value;
-  return val === 'bg1' ? audioBuffer1 : audioBuffer2;
+  const tracks = [
+    { id: 'bg1', file: 'bg1.mp3' },
+    { id: 'bg2', file: 'bg2.mp3' },
+  ];
+  for(const t of tracks) {
+    try {
+      const resp = await fetch(t.file);
+      const data = await resp.arrayBuffer();
+      audioBuffers[t.id] = await audioCtx.decodeAudioData(data);
+    } catch(e) {
+      console.log('Audio load failed:', t.file, e);
+    }
+  }
+  audioLoaded = true;
 }
 
 function playMusic() {
-  if(!audioCtx) return;
+  if(!audioLoaded || !audioCtx) return;
   stopMusic();
-  const buf = getCurrentMusicBuffer();
+  const val = document.getElementById('musicSelect').value;
+  const buf = audioBuffers[val];
   if(!buf) return;
   audioSource = audioCtx.createBufferSource();
   audioSource.buffer = buf;
@@ -477,11 +474,11 @@ function stopMusic() {
   }
 }
 
-function onMusicToggle() {
+async function onMusicToggle() {
   const on = document.getElementById('musicToggle').checked;
   if(on) {
-    if(!audioCtx) loadAudio().then(() => playMusic());
-    else playMusic();
+    await ensureAudioLoaded();
+    playMusic();
   } else {
     stopMusic();
   }
@@ -495,14 +492,9 @@ function onMusicChange() {
 
 function onMusicVolume() {
   if(audioGain) {
-    audioGain.gain.value = document.getElementById('musicVolume').value / 100;
+    audioGain.gain.value = parseInt(document.getElementById('musicVolume').value) / 100;
   }
 }
-
-// 用户首次交互时初始化音频（浏览器政策限制）
-document.addEventListener('click', () => {
-  if(!audioCtx) loadAudio();
-}, { once: true });
 
 // ===== AI 自动玩 =====
 let aiMode = false;
