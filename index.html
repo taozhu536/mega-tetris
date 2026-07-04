@@ -195,7 +195,25 @@
     </label>
     <div class="reset-btn" id="aiToggle" onclick="toggleAI()" style="margin-top:4px">🤖 自动玩</div>
   </div>
-  <div class="reset-btn" onclick="resetColors()">恢复默认</div>
+    <div class="reset-btn" onclick="resetColors()">恢复默认</div>
+  </div>
+
+  <div class="section">
+    <h3>背景音乐</h3>
+    <label style="font-size:12px;cursor:pointer;display:flex;align-items:center;gap:6px">
+      <input type="checkbox" id="musicToggle" onchange="onMusicToggle()"> 开启
+    </label>
+    <label style="font-size:12px;color:#555;display:flex;align-items:center;gap:6px">
+      曲目
+      <select id="musicSelect" onchange="onMusicChange()" style="flex:1;padding:3px 4px;border:1px solid #ccc;border-radius:4px;font-size:12px;background:#fff">
+        <option value="bg1">星球大战</option>
+        <option value="bg2">宇宙低音战</option>
+      </select>
+    </label>
+    <label style="font-size:12px;color:#555;display:flex;align-items:center;gap:6px">
+      音量 <input type="range" id="musicVolume" min="0" max="100" value="30" oninput="onMusicVolume()" style="flex:1">
+    </label>
+  </div>
 </div>
 
 <!-- 棋盘 -->
@@ -407,6 +425,84 @@ canvas.addEventListener('touchstart',(e)=>{if(paused||gameOver)return;const t=e.
 canvas.addEventListener('touchmove',(e)=>{if(paused||gameOver)return;e.preventDefault();const t=e.touches[0];const dx=t.clientX-tX,dy=t.clientY-tY;if(Math.abs(dx)>BLOCK_SIZE*2){movePiece(dx>0?1:-1,0);tX=t.clientX;tY=t.clientY;}if(Math.abs(dy)>BLOCK_SIZE*2){movePiece(0,1);tX=t.clientX;tY=t.clientY;}},{passive:false});
 canvas.addEventListener('touchend',(e)=>{if(paused||gameOver)return;const dt=Date.now()-tT,dx=Math.abs(e.changedTouches[0].clientX-tX),dy=Math.abs(e.changedTouches[0].clientY-tY);if(dt<180&&dx<8&&dy<8)rotatePiece();},{passive:true});
 document.addEventListener('dblclick',togglePause);
+
+// ===== 背景音乐控制 =====
+let audioCtx = null;
+let audioBuffer1 = null;
+let audioBuffer2 = null;
+let audioGain = null;
+let audioSource = null;
+
+// 预加载音频文件
+async function loadAudio() {
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  audioGain = audioCtx.createGain();
+  audioGain.gain.value = 0.3;
+  audioGain.connect(audioCtx.destination);
+
+  try {
+    const resp1 = await fetch('bg1.mp3');
+    const data1 = await resp1.arrayBuffer();
+    audioBuffer1 = await audioCtx.decodeAudioData(data1);
+  } catch(e) { console.log('bg1 load failed:', e); }
+
+  try {
+    const resp2 = await fetch('bg2.mp3');
+    const data2 = await resp2.arrayBuffer();
+    audioBuffer2 = await audioCtx.decodeAudioData(data2);
+  } catch(e) { console.log('bg2 load failed:', e); }
+}
+
+function getCurrentMusicBuffer() {
+  const val = document.getElementById('musicSelect').value;
+  return val === 'bg1' ? audioBuffer1 : audioBuffer2;
+}
+
+function playMusic() {
+  if(!audioCtx) return;
+  stopMusic();
+  const buf = getCurrentMusicBuffer();
+  if(!buf) return;
+  audioSource = audioCtx.createBufferSource();
+  audioSource.buffer = buf;
+  audioSource.loop = true;
+  audioSource.connect(audioGain);
+  audioSource.start(0);
+}
+
+function stopMusic() {
+  if(audioSource) {
+    try { audioSource.stop(); } catch(e) {}
+    audioSource = null;
+  }
+}
+
+function onMusicToggle() {
+  const on = document.getElementById('musicToggle').checked;
+  if(on) {
+    if(!audioCtx) loadAudio().then(() => playMusic());
+    else playMusic();
+  } else {
+    stopMusic();
+  }
+}
+
+function onMusicChange() {
+  if(document.getElementById('musicToggle').checked) {
+    playMusic();
+  }
+}
+
+function onMusicVolume() {
+  if(audioGain) {
+    audioGain.gain.value = document.getElementById('musicVolume').value / 100;
+  }
+}
+
+// 用户首次交互时初始化音频（浏览器政策限制）
+document.addEventListener('click', () => {
+  if(!audioCtx) loadAudio();
+}, { once: true });
 
 // ===== AI 自动玩 =====
 let aiMode = false;
