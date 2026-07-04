@@ -361,12 +361,67 @@ function lockPiece() {
   clearLines();
   spawnPiece();
 }
-function clearLines() { for(let r=ROWS-1;r>=0;r--) if(board[r].every(c=>c!==0)){board.splice(r,1);board.unshift(Array(COLS).fill(0));r++;} }
+function clearLines() {
+  let cleared = [];
+  for(let r=ROWS-1;r>=0;r--) if(board[r].every(c=>c!==0)){cleared.push(r);board.splice(r,1);board.unshift(Array(COLS).fill(0));r++;}
+  if(cleared.length > 0) { spawnClearEffect(cleared); }
+  updateParticles();
+}
 function startDropTimer() { stopDropTimer(); dropInterval=setInterval(()=>{if(!gameOver&&!paused&&currentPiece)movePiece(0,1);},400); }
 function stopDropTimer() { if(dropInterval){clearInterval(dropInterval);dropInterval=null;} }
 
 // ===== 渲染 =====
 let drawQueued = false;
+let particles = [];
+
+// 粒子系统——消行特效
+function spawnClearEffect(rows) {
+  const colors = ['#f59f00','#4dabf7','#9775fa','#20c997','#ff6b6b','#339af0','#cc5de8','#fff'];
+  for(const row of rows) {
+    for(let c=0; c<COLS; c++) {
+      // 每行随机撒粒子
+      for(let i=0; i<4; i++) {
+        const x = c * BLOCK_SIZE + BLOCK_SIZE/2;
+        const y = (row - 2) * BLOCK_SIZE + BLOCK_SIZE/2;
+        particles.push({
+          x, y,
+          vx: (Math.random() - 0.5) * 6,
+          vy: -Math.random() * 8 - 2,
+          size: Math.random() * 3 + 1.5,
+          color: colors[Math.floor(Math.random() * colors.length)],
+          life: 1.0,
+          decay: 0.015 + Math.random() * 0.025,
+        });
+      }
+    }
+  }
+}
+
+function updateParticles() {
+  if(particles.length === 0) return;
+  let alive = false;
+  for(const p of particles) {
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vy += 0.15; // 重力
+    p.life -= p.decay;
+    if(p.life > 0) alive = true;
+  }
+  particles = particles.filter(p => p.life > 0);
+  if(alive) drawAll();
+}
+
+function drawParticles(context) {
+  for(const p of particles) {
+    context.globalAlpha = p.life;
+    context.fillStyle = p.color;
+    context.shadowColor = p.color;
+    context.shadowBlur = 6;
+    context.fillRect(p.x - p.size/2, p.y - p.size/2, p.size, p.size);
+    context.shadowBlur = 0;
+  }
+  context.globalAlpha = 1;
+}
 function drawAll() { if(drawQueued) return; drawQueued=true; requestAnimationFrame(()=>{drawQueued=false;drawBoard();}); }
 function drawBoard() {
   const w=canvas.width,h=canvas.height;
@@ -386,6 +441,7 @@ function drawBoard() {
       if(by>=0) drawBlock(ctx,bx,by,pieceColors[currentPiece.name]);
     }
   }
+  drawParticles(ctx);
 }
 function drawBlock(ctx,x,y,color) {
   const cx=x*BLOCK_SIZE,cy=y*BLOCK_SIZE,s=BLOCK_SIZE;
